@@ -1,0 +1,13 @@
+{
+  "id": 2,
+  "title": "Owner's Orders",
+  "difficulty": "easy",
+  "file": "src/Wallet.sol",
+  "fixed": "src/WalletFixed.sol",
+  "answer_lines": [
+    13
+  ],
+  "bug_class": "tx.origin authentication",
+  "hint": "Who is tx.origin when the owner calls some other contract first?",
+  "explanation": "tx.origin is the account that started the whole transaction, not the direct caller. If the owner is tricked into calling a malicious contract (a 'free mint'), that contract can call pay() and the check still passes. Authenticate with msg.sender instead."
+}

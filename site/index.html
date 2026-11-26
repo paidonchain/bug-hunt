@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily Bug Hunt · one smart-contract security puzzle a day</title>
+<meta name="description" content="Find the bug in today's Solidity contract. One machine-verified security puzzle a day, with streaks and a shareable result. Free.">
+<meta property="og:title" content="Daily Bug Hunt 🐞">
+<meta property="og:description" content="One smart-contract security puzzle a day. Can you find the line?">
+<style>
+:root{--bg:#0d1012;--panel:#141a1d;--line:#232c30;--ink:#e6ece9;--mut:#8a9894;--acc:#ffb547;--ok:#46d39a;--bad:#ff6b6b;--code:#10161a}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--acc)}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px max(4vw,16px);border-bottom:1px solid var(--line)}
+header b{font:700 18px ui-monospace,Consolas,monospace;letter-spacing:-.02em}
+header b span{color:var(--acc)}
+.stats{display:flex;gap:14px;font:13px ui-monospace,Consolas,monospace;color:var(--mut)}
+.stats strong{color:var(--ink)}
+main{max-width:860px;margin:0 auto;padding:24px max(3vw,14px) 64px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;margin-bottom:6px}
+h1{font-size:clamp(24px,4vw,32px);margin:0;line-height:1.15}
+.pill{font:12px ui-monospace,Consolas,monospace;padding:2px 8px;border:1px solid var(--line);border-radius:99px;color:var(--mut)}
+.pill.easy{color:var(--ok)}.pill.medium{color:var(--acc)}.pill.hard{color:var(--bad)}
+.ask{color:var(--mut);margin:4px 0 14px}
+.code{background:var(--code);border:1px solid var(--line);border-radius:12px;overflow-x:auto;font:13.5px/1.65 ui-monospace,"Cascadia Code",Consolas,monospace;padding:8px 0}
+.ln{display:flex;white-space:pre;cursor:pointer;padding:0 14px 0 0;border-left:3px solid transparent}
+.ln:hover{background:#1a2226}
+.ln .n{flex:none;width:3.2em;text-align:right;padding-right:14px;color:#4c5a5f;user-select:none}
+.ln.miss{background:rgba(255,107,107,.12);border-left-color:var(--bad)}
+.ln.hit{background:rgba(70,211,154,.14);border-left-color:var(--ok)}
+.ln.reveal{background:rgba(255,181,71,.12);border-left-color:var(--acc)}
+.done .ln{cursor:default}
+.c{color:#6b7c80}.k{color:#c792ea}.s{color:#c3e88d}.t{color:#82aaff}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+.tries{font:14px ui-monospace,Consolas,monospace}
+button{font:600 14px system-ui;padding:9px 16px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;min-height:40px}
+button.primary{background:var(--acc);color:#1b1305;border-color:var(--acc)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-top:14px}
+.panel h2{margin:0 0 6px;font-size:18px}
+.result{font-size:20px;font-weight:700}
+.hint{color:var(--acc)}
+.archive{display:grid;gap:6px;padding:0;list-style:none}
+.archive a{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)}
+.archive small{color:var(--mut)}
+footer{color:var(--mut);font-size:13px;border-top:1px solid var(--line);padding:20px max(4vw,16px)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header><b>bug<span>_</span>hunt</b><div class="stats">streak <strong id="streak">0</strong> · best <strong id="best">0</strong> · solved <strong id="solved">0</strong></div></header>
+<main id="app"></main>
+<footer>
+Every puzzle is machine-verified before release: an exploit test proves the bug is real, the same test fails on the fixed version, and Slither finds no second bug. <a href="https://github.com/paidonchain/bug-hunt">See the proofs on GitHub</a>.<br>
+Built and run by an AI (Claude) as part of a documented experiment, with a human operator. Educational only; never deploy this code.
+</footer>
+<div class="toast" id="toast"></div>
+<script>
+const DATA = /*__DATA__*/null;
+const MAX_TRIES = 3;
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("bh:" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("bh:" + k, JSON.stringify(v)); } catch {} }
+};
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function hl(line) {
+  const i = line.indexOf("//");
+  let code = i >= 0 ? line.slice(0, i) : line, com = i >= 0 ? line.slice(i) : "";
+  code = esc(code)
+    .replace(/(&quot;|")(.*?)\1/g, '<span class="s">"$2"</span>')
+    .replace(/\b(contract|function|external|public|internal|private|view|pure|payable|returns|return|require|if|for|mapping|memory|storage|calldata|constructor|modifier|struct|emit|constant|immutable|pragma|solidity|import|bool|true|false|interface)\b/g, '<span class="k">$1</span>')
+    .replace(/\b(address|uint256|uint8|bytes32|bytes|string)\b/g, '<span class="t">$1</span>');
+  return code + (com ? '<span class="c">' + esc(com) + "</span>" : "");
+}
+async function sha(s) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
+function todayUTC() { return new Date().toISOString().slice(0, 10); }
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("on"); setTimeout(() => el.classList.remove("on"), 1600); }
+function stats() {
+  const s = store.get("stats", { streak: 0, best: 0, solved: 0, lastWin: null });
+  $("#streak").textContent = s.streak; $("#best").textContent = s.best; $("#solved").textContent = s.solved;
+  return s;
+}
+function recordWin(p) {
+  const s = stats();
+  if (p.date === todayUTC()) {
+    const y = new Date(Date.parse(todayUTC()) - 864e5).toISOString().slice(0, 10);
+    s.streak = s.lastWin === y ? s.streak + 1 : (s.lastWin === todayUTC() ? s.streak : 1);
+    s.lastWin = todayUTC();
+  }
+  s.solved += 1; s.best = Math.max(s.best, s.streak);
+  store.set("stats", s); stats();
+}
+function render(p, isToday) {
+  const st = store.get("p" + p.id, { guesses: [], won: false, over: false });
+  const lines = p.code.replace(/\n$/, "").split("\n");
+  $("#app").innerHTML = `
+    <div class="meta"><h1>#${p.id} · ${esc(p.title)}</h1><span class="pill ${p.difficulty}">${p.difficulty}</span><span class="pill">${p.date}</span></div>
+    <p class="ask">${isToday ? "Today's puzzle." : "From the archive."} Click the line with the bug. You have ${MAX_TRIES} tries.</p>
+    <div class="code ${st.over ? "done" : ""}" id="code">${lines.map((l, i) => `<div class="ln" data-n="${i + 1}"><span class="n">${i + 1}</span><span>${hl(l) || " "}</span></div>`).join("")}</div>
+    <div class="bar"><span class="tries" id="tries"></span><span class="hint" id="hint"></span></div>
+    <div id="after"></div>
+    <div class="panel"><h2>Archive</h2><ul class="archive">${DATA.puzzles.slice().reverse().map(q => `<li><a href="#${q.id}"><span>#${q.id} ${esc(q.title)}</span><small>${store.get("p" + q.id, {}).won ? "✅" : store.get("p" + q.id, {}).over ? "❌" : ""} ${q.difficulty}</small></a></li>`).join("")}</ul></div>`;
+  const paint = async () => {
+    for (const g of st.guesses) {
+      const el = $(`.ln[data-n="${g}"]`);
+      if (el) el.classList.add((await check(p, g)) ? "hit" : "miss");
+    }
+    $("#tries").textContent = (await Promise.all(st.guesses.map(g => check(p, g)))).map(ok => ok ? "🟩" : "🟥").join("") + (st.over ? "" : `${st.guesses.length ? "  ·  " : ""}${MAX_TRIES - st.guesses.length} tries left`);
+    if (!st.over && st.guesses.length >= 1) $("#hint").textContent = "Hint: " + p.hint;
+    if (st.over) after(p, st);
+  };
+  $("#code").addEventListener("click", async e => {
+    const ln = e.target.closest(".ln"); if (!ln || st.over) return;
+    const n = +ln.dataset.n; if (st.guesses.includes(n)) return;
+    st.guesses.push(n);
+    const ok = await check(p, n);
+    if (ok) { st.won = true; st.over = true; recordWin(p); }
+    else if (st.guesses.length >= MAX_TRIES) { st.over = true; if (p.date === todayUTC()) { const s = stats(); s.streak = 0; store.set("stats", s); stats(); } }
+    store.set("p" + p.id, st);
+    $("#code").classList.toggle("done", st.over);
+    paint();
+  });
+  paint();
+}
+async function check(p, n) { return p.answers.includes(await sha(p.salt + ":" + n)); }
+async function after(p, st) {
+  for (const el of document.querySelectorAll(".ln")) if (await check(p, +el.dataset.n) && !el.classList.contains("hit")) el.classList.add("reveal");
+  const grid = (await Promise.all(st.guesses.map(g => check(p, g)))).map(ok => ok ? "🟩" : "🟥").join("");
+  const s = stats();
+  const share = `🐞 Bug Hunt #${p.id} ${st.won ? st.guesses.length + "/" + MAX_TRIES : "X/" + MAX_TRIES} ${grid}${s.streak > 1 ? " 🔥" + s.streak : ""}\n${location.origin + location.pathname}`;
+  $("#after").innerHTML = `<div class="panel"><p class="result">${st.won ? "Found it 🎯" : "Not this time"}</p>
+    <h2>${esc(p.bug_class)}</h2><p>${esc(p.explanation)}</p>
+    <div class="bar"><button class="primary" id="share">Copy result</button><a href="${p.proof}">See the exploit test →</a></div>
+    <p class="ask">New puzzle every day at 00:00 UTC.</p></div>`;
+  $("#share").onclick = async () => { try { await navigator.clipboard.writeText(share); toast("Copied!"); } catch { prompt("Copy your result:", share); } };
+  $("#hint").textContent = "";
+}
+function route() {
+  const ps = DATA.puzzles; if (!ps.length) { $("#app").innerHTML = "<h1>First puzzle coming soon.</h1>"; return; }
+  const want = +location.hash.slice(1);
+  const latest = ps[ps.length - 1];
+  const p = ps.find(q => q.id === want) || latest;
+  render(p, p === latest && p.date === todayUTC());
+  window.scrollTo(0, 0);
+}
+stats(); window.addEventListener("hashchange", route); route();
+</script>
+</body>
+</html>

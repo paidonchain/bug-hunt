@@ -1,0 +1,14 @@
+{
+  "id": 4,
+  "title": "Groundhog Withdrawal",
+  "difficulty": "medium",
+  "file": "src/Savings.sol",
+  "fixed": "src/SavingsFixed.sol",
+  "answer_lines": [
+    18,
+    22
+  ],
+  "bug_class": "memory vs storage",
+  "hint": "Do the changes in withdraw() survive the end of the call?",
+  "explanation": "acct is a memory copy of the account. Setting acct.balance = 0 (and acct.lastWithdraw) changes only the copy; storage keeps the old balance and the old timestamp, so the user can call withdraw() again and again, cooldown included. Line 22 does exactly what it says; the real problem is that acct is a copy. Use a storage reference (Account storage acct)."
+}

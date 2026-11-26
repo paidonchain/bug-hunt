@@ -1,0 +1,6 @@
+[profile.default]
+src = "puzzles"
+test = "puzzles"
+out = "out"
+libs = []
+solc_version = "0.8.24"

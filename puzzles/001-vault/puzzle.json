@@ -1,0 +1,11 @@
+{
+  "id": 1,
+  "title": "The Generous Vault",
+  "difficulty": "easy",
+  "file": "src/Vault.sol",
+  "fixed": "src/VaultFixed.sol",
+  "answer_lines": [15, 17],
+  "bug_class": "reentrancy",
+  "hint": "What happens if msg.sender is a contract?",
+  "explanation": "withdraw() sends ETH before zeroing the balance. A contract caller can re-enter withdraw() from its receive() function while its balance is still non-zero, draining other users' deposits. Fix: update state before the external call (checks-effects-interactions), or add a reentrancy guard."
+}

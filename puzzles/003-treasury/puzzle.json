@@ -1,0 +1,14 @@
+{
+  "id": 3,
+  "title": "Change of Ownership",
+  "difficulty": "easy",
+  "file": "src/Treasury.sol",
+  "fixed": "src/TreasuryFixed.sol",
+  "answer_lines": [
+    17,
+    18
+  ],
+  "bug_class": "missing access control",
+  "hint": "Trace how someone becomes the owner.",
+  "explanation": "setOwner() has no onlyOwner modifier, so anyone can make themselves the owner and then withdraw everything. Privileged state changes need the same access check as the actions they unlock."
+}
